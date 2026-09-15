@@ -1,0 +1,19 @@
+# Python virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# Playwright session state
+session.json
+
+# Google service account credentials
+service_account.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE configuration
+.idea/
+.vscode/
