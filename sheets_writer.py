@@ -34,6 +34,11 @@ class SheetClient(ABC):
         TitleNotFoundError if no row for that exact title exists."""
         ...
 
+    @abstractmethod
+    def get_row(self, sheet_name: str, title: str) -> dict | None:
+        """Returns the existing row for `title`, or None if not present."""
+        ...
+
 
 class MockSheetClient(SheetClient):
     """In-memory stand-in for gspread, seeded with rows per sheet, so the
@@ -54,6 +59,12 @@ class MockSheetClient(SheetClient):
                 row.update(updates)
                 return
         raise TitleNotFoundError(f"{title!r} not found in sheet {sheet_name!r}")
+
+    def get_row(self, sheet_name: str, title: str) -> dict | None:
+        for row in self.sheets.get(sheet_name, []):
+            if row.get("title") == title:
+                return dict(row)
+        return None
 
 
 class GspreadSheetClient(SheetClient):
@@ -83,6 +94,12 @@ class GspreadSheetClient(SheetClient):
         for field, value in updates.items():
             if field in header:
                 worksheet.update_cell(cell.row, header.index(field) + 1, value)
+
+    def get_row(self, sheet_name: str, title: str) -> dict | None:
+        for row in self._worksheet(sheet_name).get_all_records():
+            if row.get("title") == title:
+                return row
+        return None
 
 
 def report_to_row(report: TitleReport) -> dict:

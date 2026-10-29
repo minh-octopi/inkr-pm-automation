@@ -1,16 +1,27 @@
+from datetime import datetime, timedelta, timezone
+
 from scraper import get_mock_titles, find_title
 from status import summarize
 from sheets_writer import MockSheetClient, update_statuses
 from report import titles_needing_new_chapter, format_summary_table
+from AI_PM import urgency
+from AI_PM.pm_layer import MockLLMClient, TitleUrgency
+from AI_PM.notifier import MockEmailClient
+import config
 
 # Mock seed for the 3 team sheets. "source" is the master title list you
 # maintain (one row per exact title name to track); team_2/team_3 stand in
 # for the other two team sheets that also get status mirrored into them.
 # Deliberately includes a title INKR doesn't have, and a title team_2 hasn't
-# added yet, to exercise both failure paths below.
+# added yet, to exercise both failure paths below. Solo Leveling is seeded
+# with a first_flagged_at a few days in the past, so the PM layer demo below
+# shows one title that's been stalled for a while alongside one freshly
+# flagged this run.
+_SEEDED_FLAGGED_AT = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+
 SEED_SHEETS = {
     "source": [
-        {"title": "Solo Leveling"},
+        {"title": "Solo Leveling", urgency.FLAGGED_AT_FIELD: _SEEDED_FLAGGED_AT},
         {"title": "Tower of God"},
         {"title": "Omniscient Reader"},
         {"title": "The Beginning After The End"},
@@ -69,6 +80,31 @@ def run_pipeline():
     needing_new = titles_needing_new_chapter(reports)
     print("\nTitles needing a new chapter:")
     print(format_summary_table(needing_new) if needing_new else "(none)")
+
+    # --- PM layer: prioritize by how long a title has been stalled, and
+    # report it. The only AI call in this whole tool happens inside
+    # MockLLMClient/RealLLMClient.summarize() below — everything above this
+    # line is plain code. See claude_update.md for why.
+    urgencies = []
+    for r in reports:
+        current_row = sheet_client.get_row("source", r.title) or {}
+        flagged_at = urgency.next_flagged_at(
+            current_row.get(urgency.FLAGGED_AT_FIELD), r.needs_new_chapter
+        )
+        sheet_client.update_row("source", r.title, {urgency.FLAGGED_AT_FIELD: flagged_at})
+        urgencies.append(TitleUrgency(report=r, days_stalled=urgency.days_stalled(flagged_at)))
+
+    pm_report = MockLLMClient().summarize(urgencies)
+    print("\n--- PM Report (mock LLM) ---")
+    print(pm_report)
+
+    email_client = MockEmailClient()
+    email_client.send(
+        to=config.PM_REPORT_RECIPIENT,
+        subject="INKR chapter status — PM report",
+        body=pm_report,
+    )
+    print(f"\n(Mock) Email queued to {config.PM_REPORT_RECIPIENT} ({len(email_client.sent)} message(s)).")
 
 
 if __name__ == "__main__":

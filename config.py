@@ -18,5 +18,13 @@ GOOGLE_SHEET_IDS = {
 }
 GSPREAD_SERVICE_ACCOUNT_FILE = os.getenv("GSPREAD_SERVICE_ACCOUNT_FILE", "service_account.json")
 
+# --- PM Layer Configuration ---
+# Used only by pm_layer.RealLLMClient and notifier.SMTPEmailClient — not
+# needed for the mock pipeline. See claude_update.md for the cost reasoning.
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
+PM_REPORT_RECIPIENT = os.getenv("PM_REPORT_RECIPIENT", "minh@octopistudio.com")
+
 # --- Scheduler Configuration ---
 TIMEZONE = pytz.timezone("US/Eastern")
